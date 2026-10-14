@@ -26,6 +26,14 @@ yarn-error.log*
 schema.json
 local-kv-store.json
 
+# Environment Variables & Secret Files
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.cert
+
 # OS Generated Files
 .DS_Store
 Thumbs.db
