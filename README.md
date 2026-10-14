@@ -7,22 +7,23 @@
 
 ---
 
-## 1. Executive Summary & Objective
+## 1. Project Overview & Objectives
 
-This project implements an automated, production-ready **Serverless Student Task Management Application** provisioned entirely via **Terraform-Based Infrastructure as Code (IaC)** on the **Cloudflare Free tier**. 
+This project implements an automated, serverless **Student Task Management Application** provisioned entirely using **Terraform-Based Infrastructure as Code (IaC)** on the **Cloudflare Free tier**, integrated with **Git**, **GitHub**, and **GitHub Actions CI/CD**.
 
-The primary academic and practical evaluation objective is **Infrastructure as Code (IaC)**: automating the provisioning, configuration, modification, destruction, and recreation of cloud resources rather than relying on manual dashboard actions.
+The primary academic and practical evaluation objective is **Infrastructure as Code (IaC)**: automating the provisioning, configuration, in-place modification, destruction, and recreation of cloud resources rather than relying on manual dashboard actions.
 
-### Core Evaluation Highlights:
-* **Zero Manual Provisioning:** Cloudflare Worker, KV Namespace, and Worker-to-KV bindings are created exclusively via Terraform.
-* **Persistent Storage:** Cloudflare Workers KV stores and retrieves task records with low-latency global distribution.
-* **Full REST API Suite:** Standardized CRUD endpoints for student tasks (`GET`, `POST`, `PUT`, `DELETE`).
-* **CI/CD Pipeline:** Fully automated deployment pipeline using GitHub Actions that formats, validates, plans, and applies infrastructure on Git push.
-* **Security & Clean Code:** Strict segregation of credentials using environment variables and `.tfvars` excluded from Git version control.
+### Key Objectives:
+1. **Infrastructure as Code (IaC)**: Terraform manages the Cloudflare Worker, KV namespace, and Worker-to-KV bindings declaratively.
+2. **Serverless Architecture**: Cloudflare Workers executes serverless JavaScript at the edge with sub-50ms latency.
+3. **Persistent Cloud Storage**: Distributed Cloudflare Workers KV stores and retrieves task records.
+4. **Complete REST API Suite**: Implements `POST /api/tasks`, `GET /api/tasks`, `GET /api/tasks/{id}`, `PUT /api/tasks/{id}`, and `DELETE /api/tasks/{id}`.
+5. **Continuous Deployment (CI/CD)**: GitHub Actions automates linting, provider initialization, validation, planning, and deployment.
+6. **Zero-Trust Security**: No hardcoded API tokens, secrets, or state files in version control.
 
 ---
 
-## 2. Architecture & Data Flow
+## 2. Architecture Explanation
 
 ```
                                     +------------------------------------------------+
@@ -67,207 +68,116 @@ The primary academic and practical evaluation objective is **Infrastructure as C
               +-------------------------------+                           +-------------------------------+
 ```
 
+### Technical Workflow:
+1. **Frontend Request**: When a user accesses `https://student-task-manager-dev.<subdomain>.workers.dev/`, the Worker intercepts the request and serves the embedded `index.html`.
+2. **Asset Loading**: The browser requests `/style.css` and `/script.js`, which the Worker serves with appropriate MIME types and cache headers.
+3. **API Routing**: When the frontend performs CRUD actions, it issues `fetch('/api/tasks...')` to the same origin. The Worker parses the request, executes atomic CRUD actions on `env.TASKS_KV`, and returns structured JSON responses.
+
 ---
 
-## 3. Repository Directory Structure
+## 3. Technology Stack
+
+* **Frontend**: Vanilla HTML5, CSS3 (Obsidian & Glassmorphism Design System), JavaScript (ES6+).
+* **Backend**: JavaScript Cloudflare Worker using REST APIs (`fetch` handler).
+* **Database/Storage**: Cloudflare Workers KV (distributed key-value store).
+* **Infrastructure as Code (IaC)**: HashiCorp Terraform CLI v1.16+ with `cloudflare/cloudflare` provider `~> 4.45.0`.
+* **Version Control**: Git and GitHub.
+* **CI/CD Automation**: GitHub Actions (`.github/workflows/deploy.yml`).
+* **Cloud Platform**: Cloudflare Free Plan.
+
+---
+
+## 4. Folder Structure
 
 ```
 student-task-manager-iac/
 ├── application/
-│   ├── index.html            # Responsive frontend dashboard with glassmorphism UI
-│   ├── style.css             # Modern dark-theme stylesheet with design tokens
-│   ├── script.js             # Client logic handling REST API calls & DOM updates
-│   └── worker.js             # Cloudflare Worker script serving UI & REST endpoints
+│   ├── index.html            # Semantic frontend dashboard with KPI cards and modals
+│   ├── style.css             # Glassmorphism dark-theme design tokens and animations
+│   ├── script.js             # Client logic, REST API calls, status dropdown, toasts
+│   └── worker.js             # Serverless Cloudflare Worker code + REST API routes
 ├── terraform/
-│   ├── providers.tf          # Terraform block and Cloudflare provider declarations
-│   ├── main.tf               # IaC resources (Workers KV, Worker script, KV binding)
-│   ├── variables.tf          # Input variable schemas and validation rules
-│   ├── outputs.tf            # Output values (KV ID, Worker name, endpoints)
-│   └── terraform.tfvars.example # Safe template for required credentials
+│   ├── providers.tf          # Terraform engine version & Cloudflare provider block
+│   ├── main.tf               # Core IaC resources (Workers KV, Worker script, KV binding)
+│   ├── variables.tf          # Input variable schemas, default values, and validations
+│   ├── outputs.tf            # Output values (KV ID, script name, live URL formats)
+│   ├── backend.tf            # Documentation & configuration guide for remote state
+│   └── terraform.tfvars.example # Safe credential template with placeholders
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml        # GitHub Actions CI/CD automation workflow
+│       └── deploy.yml        # GitHub Actions CI/CD automated deployment workflow
 ├── screenshots/
-│   └── README.md             # Guide for viva evaluation screenshots
-├── .gitignore                # Protects secrets, state files, and build artifacts
-└── README.md                 # Complete project documentation and execution guide
-```
-
-### Purpose of Major Files:
-1. **`application/worker.js`**: Core serverless engine. Listens for HTTP requests. When routes match `/api/tasks*`, it executes CRUD operations on `env.TASKS_KV`. When routes match `/`, it serves the frontend assets.
-2. **`application/index.html`**: Semantic single-page dashboard featuring KPI counters, quick task creation, live status indicators, search, priority filter, and inspection modals.
-3. **`application/style.css`**: Vanilla CSS adhering to modern aesthetics (deep obsidian palette, translucent glassmorphism surfaces, subtle glow gradients, and responsive grid layouts).
-4. **`application/script.js`**: Asynchronous JavaScript handling form submissions, API requests, toast notifications, status cycling, and modal lifecycles.
-5. **`terraform/providers.tf`**: Pinpoints required Terraform version (`>= 1.5.0`) and the official `cloudflare/cloudflare` provider (`~> 4.45.0`).
-6. **`terraform/main.tf`**: Defines the target infrastructure:
-   * `cloudflare_workers_kv_namespace.tasks_kv`: Allocates the persistent distributed key-value namespace.
-   * `cloudflare_workers_script.task_manager`: Packages and deploys the worker code with the `kv_namespace_binding` block connecting `TASKS_KV` to the KV namespace ID.
-7. **`terraform/variables.tf`**: Enforces strict typing for `cloudflare_api_token`, `cloudflare_account_id`, `environment`, and `worker_name`.
-8. **`terraform/outputs.tf`**: Exposes vital deployment data after `terraform apply` (KV Namespace ID, script name, live URL patterns).
-9. **`.github/workflows/deploy.yml`**: Defines a 7-step CI/CD pipeline executing `terraform fmt -check`, `init`, `validate`, `plan`, and `apply` upon commits to the `main` branch.
-
----
-
-## 4. Student Task Data Schema
-
-Each student task stored in Cloudflare Workers KV is serialized as a JSON object adhering to this schema:
-
-| Property | Data Type | Required | Description | Example |
-| :--- | :--- | :--- | :--- | :--- |
-| `id` | `String` | Yes | Unique ID generated upon creation | `task_1728912345_a1b2c` |
-| `title` | `String` | Yes | Task title / description | `"Submit Cloud Computing Lab Assignment"` |
-| `priority` | `String` | Yes | Priority level (`Low`, `Medium`, `High`) | `"High"` |
-| `status` | `String` | Yes | Lifecycle status (`Pending`, `In Progress`, `Completed`) | `"Pending"` |
-| `createdAt` | `String` | Yes | ISO 8601 creation timestamp | `"2026-10-14T13:00:00.000Z"` |
-| `updatedAt` | `String` | Yes | ISO 8601 last modified timestamp | `"2026-10-14T13:15:00.000Z"` |
-
----
-
-## 5. REST API Specification
-
-### Base Path: `/api/tasks`
-
-#### 1. Retrieve All Tasks
-* **Method:** `GET`
-* **Path:** `/api/tasks`
-* **Response:** `200 OK`
-```json
-{
-  "success": true,
-  "count": 1,
-  "data": [
-    {
-      "id": "task_1728912345_a1b2c",
-      "title": "Submit Cloud Computing Lab Assignment",
-      "priority": "High",
-      "status": "In Progress",
-      "createdAt": "2026-10-14T13:00:00.000Z",
-      "updatedAt": "2026-10-14T13:15:00.000Z"
-    }
-  ]
-}
-```
-
-#### 2. Create a New Task
-* **Method:** `POST`
-* **Path:** `/api/tasks`
-* **Headers:** `Content-Type: application/json`
-* **Payload:**
-```json
-{
-  "title": "Prepare Seminar Presentation on Terraform IaC",
-  "priority": "High",
-  "status": "Pending"
-}
-```
-* **Response:** `201 Created`
-```json
-{
-  "success": true,
-  "message": "Task created successfully",
-  "data": {
-    "id": "task_1728912999_x9y8z",
-    "title": "Prepare Seminar Presentation on Terraform IaC",
-    "priority": "High",
-    "status": "Pending",
-    "createdAt": "2026-10-14T13:20:00.000Z",
-    "updatedAt": "2026-10-14T13:20:00.000Z"
-  }
-}
-```
-
-#### 3. Retrieve a Single Task by ID
-* **Method:** `GET`
-* **Path:** `/api/tasks/{id}`
-* **Response:** `200 OK` (or `404 Not Found`)
-```json
-{
-  "success": true,
-  "data": {
-    "id": "task_1728912999_x9y8z",
-    "title": "Prepare Seminar Presentation on Terraform IaC",
-    "priority": "High",
-    "status": "Pending",
-    "createdAt": "2026-10-14T13:20:00.000Z",
-    "updatedAt": "2026-10-14T13:20:00.000Z"
-  }
-}
-```
-
-#### 4. Update a Task
-* **Method:** `PUT`
-* **Path:** `/api/tasks/{id}`
-* **Payload:**
-```json
-{
-  "status": "Completed"
-}
-```
-* **Response:** `200 OK`
-```json
-{
-  "success": true,
-  "message": "Task updated successfully",
-  "data": {
-    "id": "task_1728912999_x9y8z",
-    "title": "Prepare Seminar Presentation on Terraform IaC",
-    "priority": "High",
-    "status": "Completed",
-    "createdAt": "2026-10-14T13:20:00.000Z",
-    "updatedAt": "2026-10-14T13:30:00.000Z"
-  }
-}
-```
-
-#### 5. Delete a Task
-* **Method:** `DELETE`
-* **Path:** `/api/tasks/{id}`
-* **Response:** `200 OK`
-```json
-{
-  "success": true,
-  "message": "Task with ID \"task_1728912999_x9y8z\" was deleted successfully."
-}
+│   ├── README.md             # Viva screenshot checklist and report guide
+│   └── crud_operations_test.webp # Recorded end-to-end browser CRUD demonstration
+├── .gitignore                # Protects secrets, credentials, state files, and logs
+├── package.json              # Local testing scripts & helper commands
+├── test-server.js            # Zero-dependency local mock server for immediate testing
+└── README.md                 # Project documentation and evaluation guide
 ```
 
 ---
 
-## 6. Step-by-Step Deployment & Evaluation Guide
+## 5. Prerequisites
 
-### Step 1: Obtain Cloudflare Credentials (1-Minute Setup)
-1. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com/) (Free plan).
+Before running the project, verify that the following tools are installed:
+* **Node.js**: v18+ or v22+ (`node -v`)
+* **Git**: v2.40+ (`git --version`)
+* **Terraform CLI**: v1.5+ or v1.16+ (`terraform -version`)
+
+---
+
+## 6. Cloudflare Authentication & Setup
+
+You need a free Cloudflare account. Follow these one-time steps:
+
+1. Log in to the [Cloudflare Dashboard](https://dash.cloudflare.com/).
 2. **Find Account ID**:
-   * Navigate to **Workers & Pages** in the left sidebar.
-   * On the right sidebar, locate **Account ID** and click to copy.
-3. **Create API Token**:
-   * Click your user profile icon (top right) &rarr; **My Profile** &rarr; **API Tokens**.
-   * Click **Create Token** &rarr; select **Create Custom Token** &rarr; **Get started**.
-   * Name your token: `terraform-task-manager-token`.
+   * Click **Workers & Pages** in the left sidebar.
+   * On the right-hand panel under **Account details**, click to copy your **Account ID**.
+3. **Generate API Token**:
+   * Click your user profile icon (top-right) &rarr; **My Profile** &rarr; **API Tokens**.
+   * Click **Create Token** &rarr; select **Create Custom Token** &rarr; click **Get started**.
+   * Token name: `student-task-manager-token`.
    * Under **Permissions**, add:
      * **Account** &bull; **Workers Scripts** &bull; **Edit**
      * **Account** &bull; **Workers KV Storage** &bull; **Edit**
      * **Account** &bull; **Account Settings** &bull; **Read**
-   * Under **Account Resources**, choose **Include** &bull; **All accounts** (or your specific account).
-   * Click **Continue to summary** &rarr; **Create Token**.
-   * Copy your API Token (Cloudflare will display it only once).
+   * Under **Account Resources**: select **Include** &bull; **All accounts**.
+   * Click **Continue to summary** &rarr; **Create Token**, and copy the token.
 
 ---
 
-### Step 2: Configure Local Terraform Variables
-In your terminal, navigate to the `terraform/` folder:
+## 7. Local Testing Instructions
 
-```bash
-cd "student-task-manager-iac/terraform"
+You can run and test the complete application locally with zero external dependencies and simulated KV persistence:
+
+```powershell
+cd "d:\cc project2\student-task-manager-iac"
+npm start
 ```
 
-Create your private `terraform.tfvars` file from the example:
+1. Open **`http://localhost:3000`** in your browser.
+2. The UI starts in an empty state (no fake tasks).
+3. Add a task with title and priority (`Low`, `Medium`, or `High`).
+4. Change the status from `Pending` to `In Progress` using the dropdown on the card.
+5. Click **Details** to inspect the server-generated task ID, timestamps, and JSON representation.
+6. Click **Delete** to delete the task.
 
-```bash
-cp terraform.tfvars.example terraform.tfvars
+---
+
+## 8. Terraform Lifecycle Commands
+
+Run all Terraform commands from the `terraform/` directory:
+
+```powershell
+cd "d:\cc project2\student-task-manager-iac\terraform"
 ```
 
-Open `terraform.tfvars` in your editor and insert your actual Cloudflare credentials:
-
+Create your private `terraform.tfvars` from the example:
+```powershell
+copy terraform.tfvars.example terraform.tfvars
+```
+Insert your actual Cloudflare credentials:
 ```hcl
 cloudflare_account_id = "your_actual_account_id_here"
 cloudflare_api_token  = "your_actual_api_token_here"
@@ -275,122 +185,130 @@ environment           = "dev"
 worker_name           = "student-task-manager"
 ```
 
-*(Note: `terraform.tfvars` is automatically ignored by `.gitignore` so your secret token will never be committed to Git).*
+### Complete Lifecycle Execution:
+
+```powershell
+# Step 1: Initialize Provider Plugins
+terraform init
+
+# Step 2: Check Code Formatting
+terraform fmt -check
+
+# Step 3: Validate Syntax
+terraform validate
+
+# Step 4: Generate Execution Plan
+terraform plan
+
+# Step 5: Apply & Provision Infrastructure
+terraform apply
+
+# Step 6: Inspect Managed State
+terraform show
+```
 
 ---
 
-### Step 3: Demonstrate the 8 Terraform Lifecycle Phases (College Viva Demo)
+## 9. Infrastructure Modification Example
 
-#### Phase 1: Code Formatting Validation
-Ensures clean, canonical Terraform code formatting:
-```bash
-terraform fmt -check
+To demonstrate Terraform's ability to update infrastructure declaratively:
+
+1. Open `terraform/terraform.tfvars` and modify the `compatibility_date` or add a new tag:
+   ```hcl
+   compatibility_date = "2024-10-01"
+   tags               = ["student-tasks", "iac-managed", "v2-modified"]
+   ```
+2. Run speculative plan:
+   ```powershell
+   terraform plan
+   ```
+   *Terraform detects the change and shows an in-place update:*
+   `~ update in-place: tags, compatibility_date` (`0 to add, 1 to change, 0 to destroy`).
+3. Apply the modification:
+   ```powershell
+   terraform apply
+   ```
+
+---
+
+## 10. GitHub and GitHub Actions CI/CD Setup
+
+### 1. Initialize and Push to GitHub:
+```powershell
+cd "d:\cc project2\student-task-manager-iac"
+git remote add origin https://github.com/<YOUR_USERNAME>/student-task-manager-iac.git
+git branch -M main
+git push -u origin main
 ```
 
-#### Phase 2: Provider Initialization
-Downloads and installs the pinned Cloudflare Terraform provider:
-```bash
-terraform init
-```
-*Expected Output:* `Terraform has been successfully initialized!`
+### 2. Configure GitHub Secrets:
+1. In your GitHub repository, navigate to **Settings** &rarr; **Secrets and variables** &rarr; **Actions**.
+2. Add **Secret 1**:
+   * Name: `CLOUDFLARE_API_TOKEN`
+   * Value: `<Your Cloudflare API Token>`
+3. Add **Secret 2**:
+   * Name: `CLOUDFLARE_ACCOUNT_ID`
+   * Value: `<Your Cloudflare Account ID>`
 
-#### Phase 3: Configuration Syntax Validation
-Validates internal consistency and resource arguments:
-```bash
-terraform validate
-```
-*Expected Output:* `Success! The configuration is valid.`
+### 3. Remote State Strategy in CI/CD:
+Because GitHub Actions runners are ephemeral, successive runs need a shared state backend.
+* **Recommended Free Option**: Cloudflare R2 (S3-compatible, 10 GB free tier). See [terraform/backend.tf](file:///d:/cc%20project2/student-task-manager-iac/terraform/backend.tf) for the exact `backend "s3"` block and instructions.
+* For local development, Terraform defaults to local state (`terraform.tfstate`, ignored by Git).
 
-#### Phase 4: Speculative Execution Plan
-Generates an execution plan showing exactly what resources will be created without modifying the cloud:
-```bash
-terraform plan
-```
-*Expected Output:* `Plan: 2 to add, 0 to change, 0 to destroy.`
-* `cloudflare_workers_kv_namespace.tasks_kv` (KV Namespace)
-* `cloudflare_workers_script.task_manager` (Worker Script + Binding)
+---
 
-#### Phase 5: Infrastructure Application (Creation)
-Applies the plan and provisions live infrastructure on Cloudflare:
-```bash
-terraform apply -auto-approve
-```
-*Expected Output:* `Apply complete! Resources: 2 added, 0 changed, 0 destroyed.` along with output values showing your Worker name and KV ID.
+## 11. Destroy and Recreate Procedure
 
-#### Phase 6: Cloudflare Dashboard Read-Only Verification
-* Log into the Cloudflare Dashboard.
-* Verify under **Workers & Pages**: `student-task-manager-dev` is active.
-* Verify under **Workers & Pages > KV**: `dev-student-tasks-kv` is created.
-* Note: As required by the evaluation rules, do NOT create or edit resources in the dashboard.
+To demonstrate complete infrastructure lifecycle teardown and recreation:
 
-#### Phase 7: Infrastructure Modification
-To demonstrate IaC mutability:
-1. Open `terraform.tfvars` and change `environment = "staging"` (or edit `variables.tf`).
-2. Run `terraform plan` and `terraform apply`.
-3. Notice that Terraform automatically creates the staging resources and handles updates declaratively!
+```powershell
+# Step 1: Teardown Plan
+terraform plan -destroy
 
-#### Phase 8: Infrastructure Teardown & Recreation
-Demonstrates complete automated lifecycle control:
-```bash
-# Clean Teardown
+# Step 2: Clean Destruction
 terraform destroy -auto-approve
 
-# Immediate Recreation
+# Step 3: Verify Removal
+terraform show
+
+# Step 4: Recreate Clean Infrastructure
+terraform plan
 terraform apply -auto-approve
 ```
 
 ---
 
-## 7. Automated CI/CD Pipeline (GitHub Actions)
+## 12. Troubleshooting
 
-This repository includes a production-grade GitHub Actions workflow in `.github/workflows/deploy.yml`.
-
-### Setting Up Secrets in GitHub:
-1. Push this repository to your GitHub account:
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: Automated deployment of serverless student task manager via Terraform"
-   git branch -M main
-   git remote add origin https://github.com/<your-username>/student-task-manager-iac.git
-   git push -u origin main
-   ```
-2. In your GitHub repository:
-   * Go to **Settings** &rarr; **Secrets and variables** &rarr; **Actions**.
-   * Click **New repository secret**.
-   * Add Secret 1:
-     * Name: `CLOUDFLARE_API_TOKEN`
-     * Value: `<Your Cloudflare API Token>`
-   * Add Secret 2:
-     * Name: `CLOUDFLARE_ACCOUNT_ID`
-     * Value: `<Your Cloudflare Account ID>`
-3. Any push to `main` will automatically trigger the GitHub Actions workflow, running format check, initialization, validation, speculative plan, and deployment!
+| Issue | Cause | Solution |
+| :--- | :--- | :--- |
+| `Error: invalid value for api_token` | Token format mismatch | Ensure the token is 40 characters long and created with Custom Token permissions. |
+| `HTTP 401: Unauthorized` | Insufficient token permissions | Verify the token includes `Workers Scripts: Edit`, `Workers KV: Edit`, and `Account Settings: Read`. |
+| `HTTP 400: Invalid Account ID` | Account ID typo | Copy the 32-character hexadecimal Account ID from Cloudflare Dashboard &rarr; Workers & Pages. |
+| `KV Binding 'TASKS_KV' missing` | Terraform apply was skipped | Run `terraform apply` so the `kv_namespace_binding` block binds the KV namespace to the script. |
 
 ---
 
-## 8. Local Development & Testing
+## 13. Security Notes
 
-You can also run and preview the application locally before deploying:
-
-1. Open `application/index.html` directly in your browser or serve via any static web server:
-   ```bash
-   npx serve application
-   ```
-2. If testing locally against your deployed Cloudflare Worker, click the **Settings** gear icon in the top right corner of the web interface and enter your deployed Worker URL (e.g., `https://student-task-manager-dev.<subdomain>.workers.dev`).
-3. Create, inspect, update, and delete tasks directly from the user interface.
+* **Zero Hardcoded Secrets**: Secrets are never hardcoded in `.tf` files or committed to Git.
+* **Sensitive Variables**: Variables containing credentials are typed with `sensitive = true` to suppress terminal printing.
+* **Git Exclusions**: `.gitignore` strictly excludes `.tfvars`, `*.tfstate`, `.env`, and private keys.
+* **Least Privilege**: GitHub Actions permissions are constrained to `contents: read`.
 
 ---
 
-## 9. Viva / Evaluation FAQ
+## 14. Screenshot Checklist for Viva / Project Report
 
-**Q1: Why use Terraform instead of deploying via the Cloudflare Dashboard or Wrangler CLI?**
-* **Answer:** Terraform provides declarative Infrastructure as Code (IaC). It manages resource state, tracks changes, prevents configuration drift, supports reproducible environments (`dev`, `staging`, `prod`), enables automated CI/CD pipelines, and allows predictable teardowns with `terraform destroy`.
-
-**Q2: How does the Worker communicate with Cloudflare Workers KV?**
-* **Answer:** Terraform establishes a `kv_namespace_binding` block inside `cloudflare_workers_script`. This binds the KV namespace ID to the variable `TASKS_KV`, making it accessible inside the Worker runtime via `env.TASKS_KV`.
-
-**Q3: How are frontend assets served serverlessly?**
-* **Answer:** Terraform reads `index.html`, `style.css`, and `script.js` during compilation and safely injects them into the Worker script. When a user requests the root route (`/`), the Worker returns the HTML directly from edge nodes with sub-50ms latency.
-
-**Q4: How are secrets kept secure?**
-* **Answer:** The Cloudflare API token is declared as `sensitive = true` in `variables.tf`, stored in `terraform.tfvars` (which is excluded from Git via `.gitignore`), and injected in CI/CD via encrypted GitHub Secrets.
+| Filename | Content to Capture |
+| :--- | :--- |
+| `01_terraform_init_validate.png` | Terminal showing `terraform init` and `terraform validate` passing. |
+| `02_terraform_plan.png` | Terminal showing `terraform plan` output (2 to add). |
+| `03_terraform_apply.png` | Terminal showing `terraform apply` success with generated output values. |
+| `04_cloudflare_dashboard_worker.png` | Cloudflare Dashboard &rarr; Workers & Pages showing `student-task-manager-dev`. |
+| `05_cloudflare_dashboard_kv.png` | Cloudflare Dashboard &rarr; Workers & Pages &rarr; KV showing persistent task keys. |
+| `06_web_app_dashboard.png` | Web application running with tasks, KPI metric counters, and status badges. |
+| `07_task_details_inspector.png` | Modal showing task details and the raw Workers KV JSON representation. |
+| `08_terraform_modify.png` | Terminal showing `terraform plan` with `~ update in-place`. |
+| `09_github_actions_ci_cd.png` | GitHub Actions workflow execution showing green checkmarks. |
+| `10_terraform_destroy.png` | Terminal showing clean teardown via `terraform destroy`. |

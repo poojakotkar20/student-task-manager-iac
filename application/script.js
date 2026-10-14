@@ -3,6 +3,16 @@
  * Interacts with Cloudflare Worker REST API + Workers KV
  */
 
+// Determine whether running directly on deployed Cloudflare Worker domain
+const isCloudflareWorker = window.location.hostname.endsWith('workers.dev') ||
+  (window.location.protocol.startsWith('http') &&
+   !window.location.hostname.includes('localhost') &&
+   !window.location.hostname.includes('127.0.0.1'));
+
+// On Cloudflare Worker, ALWAYS use relative path '' so it natively connects to the serverless backend.
+// On localhost, allow using saved endpoint if explicitly set.
+const initialApiEndpoint = isCloudflareWorker ? '' : (localStorage.getItem('task_manager_api_base') || '');
+
 // Application State
 const state = {
   tasks: [],
@@ -10,7 +20,7 @@ const state = {
   priorityFilter: 'all', // 'all' | 'High' | 'Medium' | 'Low'
   searchQuery: '',
   sortBy: 'newest', // 'newest' | 'oldest' | 'priority' | 'title'
-  apiEndpoint: localStorage.getItem('task_manager_api_base') || '',
+  apiEndpoint: initialApiEndpoint,
   selectedTaskForDelete: null,
   selectedTaskForEdit: null,
 };
@@ -243,7 +253,11 @@ function setLoading(isLoading) {
 function updateApiStatus(status, text) {
   const dot = DOM.apiStatusIndicator.querySelector('.status-dot');
   dot.className = `status-dot ${status}`;
-  DOM.apiStatusText.textContent = text;
+  if (isCloudflareWorker && status === 'online') {
+    DOM.apiStatusText.textContent = 'Cloudflare Worker (Workers KV)';
+  } else {
+    DOM.apiStatusText.textContent = text;
+  }
 }
 
 /**

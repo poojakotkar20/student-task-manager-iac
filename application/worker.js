@@ -109,7 +109,13 @@ export default {
         verifyKVBinding(env);
 
         const pathParts = pathname.split('/').filter(Boolean); // ['api', 'tasks'] or ['api', 'tasks', '{id}']
-        const taskId = pathParts.length >= 3 ? decodeURIComponent(pathParts[2]) : null;
+        
+        // Reject invalid deep sub-paths (e.g., /api/tasks/id/extra)
+        if (pathParts.length > 3) {
+          return jsonResponse({ success: false, error: `Invalid API route: ${pathname}` }, 404);
+        }
+
+        const taskId = pathParts.length === 3 ? decodeURIComponent(pathParts[2]) : null;
 
         // Route: GET /api/tasks — Retrieve all tasks
         if (method === 'GET' && !taskId) {
@@ -145,11 +151,23 @@ export default {
           try {
             body = await request.json();
           } catch {
-            return jsonResponse({ success: false, error: 'Invalid JSON request payload.' }, 400);
+            return jsonResponse({ success: false, error: 'Invalid or malformed JSON request payload.' }, 400);
           }
 
-          if (!body || !body.title || typeof body.title !== 'string' || !body.title.trim()) {
-            return jsonResponse({ success: false, error: 'Task title is required.' }, 400);
+          if (!body || typeof body !== 'object') {
+            return jsonResponse({ success: false, error: 'Request body must be a JSON object.' }, 400);
+          }
+
+          if (!body.title || typeof body.title !== 'string' || !body.title.trim()) {
+            return jsonResponse({ success: false, error: 'Task title is required and cannot be empty.' }, 400);
+          }
+
+          if (body.priority !== undefined && !['Low', 'Medium', 'High'].includes(body.priority)) {
+            return jsonResponse({ success: false, error: 'Invalid priority. Must be one of: Low, Medium, High.' }, 400);
+          }
+
+          if (body.status !== undefined && !['Pending', 'In Progress', 'Completed'].includes(body.status)) {
+            return jsonResponse({ success: false, error: 'Invalid status. Must be one of: Pending, In Progress, Completed.' }, 400);
           }
 
           const now = new Date().toISOString();
@@ -158,8 +176,8 @@ export default {
           const newTask = {
             id: cleanId,
             title: body.title.trim(),
-            priority: ['Low', 'Medium', 'High'].includes(body.priority) ? body.priority : 'Medium',
-            status: ['Pending', 'In Progress', 'Completed'].includes(body.status) ? body.status : 'Pending',
+            priority: body.priority || 'Medium',
+            status: body.status || 'Pending',
             createdAt: now,
             updatedAt: now,
           };
@@ -215,14 +233,33 @@ export default {
           try {
             body = await request.json();
           } catch {
-            return jsonResponse({ success: false, error: 'Invalid JSON request payload.' }, 400);
+            return jsonResponse({ success: false, error: 'Invalid or malformed JSON request payload.' }, 400);
+          }
+
+          if (!body || typeof body !== 'object') {
+            return jsonResponse({ success: false, error: 'Request body must be a JSON object.' }, 400);
+          }
+
+          // Strict field validation
+          if (body.title !== undefined) {
+            if (typeof body.title !== 'string' || !body.title.trim()) {
+              return jsonResponse({ success: false, error: 'Task title cannot be empty.' }, 400);
+            }
+          }
+
+          if (body.priority !== undefined && !['Low', 'Medium', 'High'].includes(body.priority)) {
+            return jsonResponse({ success: false, error: 'Invalid priority. Must be one of: Low, Medium, High.' }, 400);
+          }
+
+          if (body.status !== undefined && !['Pending', 'In Progress', 'Completed'].includes(body.status)) {
+            return jsonResponse({ success: false, error: 'Invalid status. Must be one of: Pending, In Progress, Completed.' }, 400);
           }
 
           const updatedTask = {
             ...existing,
-            title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : existing.title,
-            priority: ['Low', 'Medium', 'High'].includes(body.priority) ? body.priority : existing.priority,
-            status: ['Pending', 'In Progress', 'Completed'].includes(body.status) ? body.status : existing.status,
+            title: body.title !== undefined ? body.title.trim() : existing.title,
+            priority: body.priority !== undefined ? body.priority : existing.priority,
+            status: body.status !== undefined ? body.status : existing.status,
             updatedAt: new Date().toISOString(),
           };
 

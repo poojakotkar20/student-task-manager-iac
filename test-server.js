@@ -117,7 +117,13 @@ const server = http.createServer(async (req, res) => {
   // 3. REST API Routes: /api/tasks
   if (pathname === '/api/tasks' || pathname.startsWith('/api/tasks/')) {
     const parts = pathname.split('/').filter(Boolean);
-    const taskId = parts.length >= 3 ? decodeURIComponent(parts[2]) : null;
+
+    // Reject invalid deep sub-paths (e.g., /api/tasks/id/extra)
+    if (parts.length > 3) {
+      return sendJson(res, 404, { success: false, error: `Invalid API route: ${pathname}` });
+    }
+
+    const taskId = parts.length === 3 ? decodeURIComponent(parts[2]) : null;
 
     // GET /api/tasks — Retrieve all tasks
     if (method === 'GET' && !taskId) {
@@ -139,8 +145,20 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { success: false, error: 'Invalid or malformed JSON request payload.' });
       }
 
-      if (!body || !body.title || typeof body.title !== 'string' || !body.title.trim()) {
-        return sendJson(res, 400, { success: false, error: 'Task title is required.' });
+      if (!body || typeof body !== 'object') {
+        return sendJson(res, 400, { success: false, error: 'Request body must be a JSON object.' });
+      }
+
+      if (!body.title || typeof body.title !== 'string' || !body.title.trim()) {
+        return sendJson(res, 400, { success: false, error: 'Task title is required and cannot be empty.' });
+      }
+
+      if (body.priority !== undefined && !['Low', 'Medium', 'High'].includes(body.priority)) {
+        return sendJson(res, 400, { success: false, error: 'Invalid priority. Must be one of: Low, Medium, High.' });
+      }
+
+      if (body.status !== undefined && !['Pending', 'In Progress', 'Completed'].includes(body.status)) {
+        return sendJson(res, 400, { success: false, error: 'Invalid status. Must be one of: Pending, In Progress, Completed.' });
       }
 
       const cleanId = `task_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -148,8 +166,8 @@ const server = http.createServer(async (req, res) => {
       const newTask = {
         id: cleanId,
         title: body.title.trim(),
-        priority: ['Low', 'Medium', 'High'].includes(body.priority) ? body.priority : 'Medium',
-        status: ['Pending', 'In Progress', 'Completed'].includes(body.status) ? body.status : 'Pending',
+        priority: body.priority || 'Medium',
+        status: body.status || 'Pending',
         createdAt: now,
         updatedAt: now,
       };
@@ -187,15 +205,30 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { success: false, error: 'Invalid or malformed JSON request payload.' });
       }
 
-      if (!body) {
-        return sendJson(res, 400, { success: false, error: 'Invalid request payload.' });
+      if (!body || typeof body !== 'object') {
+        return sendJson(res, 400, { success: false, error: 'Request body must be a JSON object.' });
+      }
+
+      // Strict field validation
+      if (body.title !== undefined) {
+        if (typeof body.title !== 'string' || !body.title.trim()) {
+          return sendJson(res, 400, { success: false, error: 'Task title cannot be empty.' });
+        }
+      }
+
+      if (body.priority !== undefined && !['Low', 'Medium', 'High'].includes(body.priority)) {
+        return sendJson(res, 400, { success: false, error: 'Invalid priority. Must be one of: Low, Medium, High.' });
+      }
+
+      if (body.status !== undefined && !['Pending', 'In Progress', 'Completed'].includes(body.status)) {
+        return sendJson(res, 400, { success: false, error: 'Invalid status. Must be one of: Pending, In Progress, Completed.' });
       }
 
       const updated = {
         ...existing,
-        title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : existing.title,
-        priority: ['Low', 'Medium', 'High'].includes(body.priority) ? body.priority : existing.priority,
-        status: ['Pending', 'In Progress', 'Completed'].includes(body.status) ? body.status : existing.status,
+        title: body.title !== undefined ? body.title.trim() : existing.title,
+        priority: body.priority !== undefined ? body.priority : existing.priority,
+        status: body.status !== undefined ? body.status : existing.status,
         updatedAt: new Date().toISOString(),
       };
 
