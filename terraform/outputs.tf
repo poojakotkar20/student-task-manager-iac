@@ -1,4 +1,6 @@
-# Outputs for Cloudflare Serverless Infrastructure
+# ==============================================================================
+# Outputs: Cloudflare Serverless Infrastructure
+# ==============================================================================
 
 output "kv_namespace_id" {
   description = "Unique Identifier of the created Cloudflare Workers KV Namespace"
@@ -18,6 +20,11 @@ output "worker_script_name" {
 output "worker_compatibility_date" {
   description = "Worker runtime compatibility date"
   value       = cloudflare_workers_script.task_manager.compatibility_date
+}
+
+output "worker_tags" {
+  description = "Tags applied to the Worker script"
+  value       = cloudflare_workers_script.task_manager.tags
 }
 
 output "application_url_format" {

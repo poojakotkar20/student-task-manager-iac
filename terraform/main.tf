@@ -1,5 +1,7 @@
-# Infrastructure Definition for Serverless Student Task Manager
+# ==============================================================================
+# Infrastructure Definition: Cloudflare Serverless Student Task Manager
 # Resources: Cloudflare Workers KV Namespace, Worker Script, and KV Namespace Binding
+# ==============================================================================
 
 # 1. Provision Cloudflare Workers KV Namespace for persistent storage of student tasks
 resource "cloudflare_workers_kv_namespace" "tasks_kv" {
@@ -36,8 +38,9 @@ resource "cloudflare_workers_script" "task_manager" {
   account_id         = var.cloudflare_account_id
   name               = "${var.worker_name}-${var.environment}"
   content            = local.worker_script_content
-  compatibility_date = "2024-09-23"
+  compatibility_date = var.compatibility_date
   module             = true
+  tags               = var.tags
 
   # Worker-to-KV Binding: Makes KV namespace accessible in Worker code via env.TASKS_KV
   kv_namespace_binding {

@@ -17,10 +17,17 @@ cloudflare_account_id = "0123456789abcdef0123456789abcdef"
 #   - Account | Workers Scripts | Edit
 #   - Account | Workers KV Storage | Edit
 #   - Account | Account Settings | Read
+# Alternatively, set via environment variable: export CLOUDFLARE_API_TOKEN="your_token"
 cloudflare_api_token = "your_cloudflare_api_token_here"
 
-# Environment tag ("dev", "staging", or "prod")
+# Environment stage ("dev", "staging", or "prod")
 environment = "dev"
 
 # Script name prefix
 worker_name = "student-task-manager"
+
+# Worker runtime compatibility date (YYYY-MM-DD)
+compatibility_date = "2024-09-23"
+
+# Tags attached to the Worker resource
+tags = ["student-tasks", "iac-managed"]
