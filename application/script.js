@@ -339,8 +339,8 @@ function createTaskCardElement(task) {
 
   card.innerHTML = `
     <div class="task-card-header">
-      <span class="task-id-badge" title="Click to copy full ID" data-copy="${escapeHtml(task.id)}">
-        #${escapeHtml(task.id.substring(0, 10))}...
+      <span class="task-id-badge" title="Click to copy full Task ID" data-copy="${escapeHtml(task.id)}">
+        <strong>ID:</strong> ${escapeHtml(task.id)}
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -355,35 +355,41 @@ function createTaskCardElement(task) {
     <h3 class="task-title">${escapeHtml(task.title || 'Untitled Task')}</h3>
 
     <div class="task-card-meta">
-      <button class="task-status-btn ${statusClass}" title="Click to cycle status: Pending → In Progress → Completed" data-action="cycle-status">
-        <span>${escapeHtml(task.status || 'Pending')}</span>
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="9 18 15 12 9 6"></polyline>
-        </svg>
-      </button>
-      <span class="task-date" title="Created date">${formattedDate}</span>
+      <div class="task-status-control">
+        <span class="meta-label">Status:</span>
+        <select class="task-status-select ${statusClass}" data-action="change-status" title="Change task status">
+          <option value="Pending" ${task.status === 'Pending' ? 'selected' : ''}>Pending</option>
+          <option value="In Progress" ${task.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+          <option value="Completed" ${task.status === 'Completed' ? 'selected' : ''}>Completed</option>
+        </select>
+      </div>
+      <div class="task-date-info">
+        <span class="meta-label">Created:</span>
+        <span class="task-date" title="${formatFullDate(task.createdAt)}">${formattedDate}</span>
+      </div>
     </div>
 
     <div class="task-card-actions">
-      <button class="btn btn-secondary btn-sm" data-action="view-details">
+      <button class="btn btn-secondary btn-sm" data-action="view-details" title="View full task details">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
           <circle cx="12" cy="12" r="3"></circle>
         </svg>
         <span>Details</span>
       </button>
-      <button class="btn btn-secondary btn-sm" data-action="edit-task">
+      <button class="btn btn-secondary btn-sm" data-action="edit-task" title="Edit title or priority">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
         </svg>
         <span>Edit</span>
       </button>
-      <button class="btn btn-secondary btn-sm" data-action="delete-task" title="Delete Task">
+      <button class="btn btn-danger btn-sm" data-action="delete-task" title="Delete Task from KV">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="3 6 5 6 21 6"></polyline>
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
         </svg>
+        <span>Delete</span>
       </button>
     </div>
   `;
@@ -395,11 +401,15 @@ function createTaskCardElement(task) {
     copyToClipboard(task.id, 'Task ID copied to clipboard!');
   });
 
-  const cycleStatusBtn = card.querySelector('[data-action="cycle-status"]');
-  cycleStatusBtn.addEventListener('click', async (e) => {
+  const statusSelect = card.querySelector('[data-action="change-status"]');
+  statusSelect.addEventListener('change', async (e) => {
     e.stopPropagation();
-    const nextStatus = getNextStatus(task.status);
-    await API.updateTask(task.id, { status: nextStatus });
+    const newStatus = e.target.value;
+    try {
+      await API.updateTask(task.id, { status: newStatus });
+    } catch {
+      statusSelect.value = task.status; // Revert on error
+    }
   });
 
   const viewDetailsBtn = card.querySelector('[data-action="view-details"]');

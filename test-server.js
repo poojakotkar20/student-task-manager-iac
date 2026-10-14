@@ -1,7 +1,10 @@
 /**
  * Local Development & Testing Server
- * Simulates Cloudflare Worker + Workers KV REST API locally without requiring credentials.
+ * Simulates Cloudflare Worker + Workers KV REST API locally without requiring Cloudflare credentials.
  * Zero npm dependencies (Uses standard Node.js http, fs, and path modules).
+ * 
+ * Persists data to a local simulated KV JSON file (local-kv-store.json).
+ * Starts with an empty store (no fake tasks).
  */
 
 const http = require('http');
@@ -10,44 +13,45 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const APP_DIR = path.join(__dirname, 'application');
+const KV_FILE = path.join(__dirname, 'local-kv-store.json');
 
-// In-Memory Simulated Workers KV Store
-const kvStore = new Map();
+// Helper to load simulated KV store from disk
+function loadKV() {
+  if (!fs.existsSync(KV_FILE)) {
+    return new Map();
+  }
+  try {
+    const raw = fs.readFileSync(KV_FILE, 'utf8');
+    const data = JSON.parse(raw);
+    const map = new Map();
+    if (Array.isArray(data)) {
+      data.forEach(task => map.set(`task:${task.id}`, task));
+    }
+    return map;
+  } catch (err) {
+    console.error('Error reading local-kv-store.json:', err);
+    return new Map();
+  }
+}
 
-// Seed initial student tasks for demo/testing
-const seedTasks = [
-  {
-    id: `task_${Date.now() - 100000}_seed1`,
-    title: 'Initialize Terraform Cloudflare Provider Configuration',
-    priority: 'High',
-    status: 'Completed',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: `task_${Date.now() - 50000}_seed2`,
-    title: 'Verify Worker to Workers KV Namespace Binding',
-    priority: 'Medium',
-    status: 'In Progress',
-    createdAt: new Date(Date.now() - 43200000).toISOString(),
-    updatedAt: new Date(Date.now() - 43200000).toISOString(),
-  },
-  {
-    id: `task_${Date.now()}_seed3`,
-    title: 'Prepare College Mini-Project Viva Presentation & Report',
-    priority: 'High',
-    status: 'Pending',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+// Helper to persist simulated KV store to disk
+function saveKV(map) {
+  try {
+    const tasks = Array.from(map.values());
+    fs.writeFileSync(KV_FILE, JSON.stringify(tasks, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving local-kv-store.json:', err);
+  }
+}
 
-seedTasks.forEach(task => kvStore.set(`task:${task.id}`, task));
+// Initialize store (empty by default if file doesn't exist)
+const kvStore = loadKV();
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+  'Access-Control-Max-Age': '86400',
 };
 
 function sendJson(res, statusCode, data) {
@@ -63,7 +67,7 @@ function parseJsonBody(req) {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
-      if (!body) return resolve({});
+      if (!body) return resolve(null);
       try {
         resolve(JSON.parse(body));
       } catch (err) {
@@ -79,13 +83,13 @@ const server = http.createServer(async (req, res) => {
   const { pathname } = url;
   const method = req.method.toUpperCase();
 
-  // CORS Preflight
+  // 1. CORS Preflight
   if (method === 'OPTIONS') {
     res.writeHead(204, corsHeaders);
     return res.end();
   }
 
-  // Static Frontend Routes
+  // 2. Static Frontend Routes (Identical to worker.js behavior)
   if (pathname === '/' || pathname === '/index.html') {
     const file = fs.readFileSync(path.join(APP_DIR, 'index.html'), 'utf8');
     res.writeHead(200, { ...corsHeaders, 'Content-Type': 'text/html; charset=utf-8' });
@@ -104,7 +108,13 @@ const server = http.createServer(async (req, res) => {
     return res.end(file);
   }
 
-  // REST API: /api/tasks
+  // Favicon handler
+  if (pathname === '/favicon.ico') {
+    res.writeHead(204, corsHeaders);
+    return res.end();
+  }
+
+  // 3. REST API Routes: /api/tasks
   if (pathname === '/api/tasks' || pathname.startsWith('/api/tasks/')) {
     const parts = pathname.split('/').filter(Boolean);
     const taskId = parts.length >= 3 ? decodeURIComponent(parts[2]) : null;
@@ -122,39 +132,43 @@ const server = http.createServer(async (req, res) => {
 
     // POST /api/tasks — Create a task
     if (method === 'POST' && !taskId) {
+      let body;
       try {
-        const body = await parseJsonBody(req);
-        if (!body.title || typeof body.title !== 'string' || !body.title.trim()) {
-          return sendJson(res, 400, { success: false, error: 'Task title is required.' });
-        }
-
-        const cleanId = `task_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const now = new Date().toISOString();
-        const newTask = {
-          id: cleanId,
-          title: body.title.trim(),
-          priority: ['Low', 'Medium', 'High'].includes(body.priority) ? body.priority : 'Medium',
-          status: ['Pending', 'In Progress', 'Completed'].includes(body.status) ? body.status : 'Pending',
-          createdAt: now,
-          updatedAt: now,
-        };
-
-        kvStore.set(`task:${cleanId}`, newTask);
-        return sendJson(res, 201, {
-          success: true,
-          message: 'Task created successfully in mock KV',
-          data: newTask,
-        });
+        body = await parseJsonBody(req);
       } catch {
-        return sendJson(res, 400, { success: false, error: 'Invalid JSON body.' });
+        return sendJson(res, 400, { success: false, error: 'Invalid or malformed JSON request payload.' });
       }
+
+      if (!body || !body.title || typeof body.title !== 'string' || !body.title.trim()) {
+        return sendJson(res, 400, { success: false, error: 'Task title is required.' });
+      }
+
+      const cleanId = `task_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const now = new Date().toISOString();
+      const newTask = {
+        id: cleanId,
+        title: body.title.trim(),
+        priority: ['Low', 'Medium', 'High'].includes(body.priority) ? body.priority : 'Medium',
+        status: ['Pending', 'In Progress', 'Completed'].includes(body.status) ? body.status : 'Pending',
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      kvStore.set(`task:${cleanId}`, newTask);
+      saveKV(kvStore);
+
+      return sendJson(res, 201, {
+        success: true,
+        message: 'Task created successfully',
+        data: newTask,
+      });
     }
 
     // GET /api/tasks/{id} — Retrieve one task
     if (method === 'GET' && taskId) {
       const task = kvStore.get(`task:${taskId}`);
       if (!task) {
-        return sendJson(res, 404, { success: false, error: `Task "${taskId}" not found.` });
+        return sendJson(res, 404, { success: false, error: `Task with ID "${taskId}" not found.` });
       }
       return sendJson(res, 200, { success: true, data: task });
     }
@@ -163,48 +177,58 @@ const server = http.createServer(async (req, res) => {
     if (method === 'PUT' && taskId) {
       const existing = kvStore.get(`task:${taskId}`);
       if (!existing) {
-        return sendJson(res, 404, { success: false, error: `Task "${taskId}" not found.` });
+        return sendJson(res, 404, { success: false, error: `Task with ID "${taskId}" not found.` });
       }
 
+      let body;
       try {
-        const body = await parseJsonBody(req);
-        const updated = {
-          ...existing,
-          title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : existing.title,
-          priority: ['Low', 'Medium', 'High'].includes(body.priority) ? body.priority : existing.priority,
-          status: ['Pending', 'In Progress', 'Completed'].includes(body.status) ? body.status : existing.status,
-          updatedAt: new Date().toISOString(),
-        };
-
-        kvStore.set(`task:${taskId}`, updated);
-        return sendJson(res, 200, {
-          success: true,
-          message: 'Task updated successfully',
-          data: updated,
-        });
+        body = await parseJsonBody(req);
       } catch {
-        return sendJson(res, 400, { success: false, error: 'Invalid JSON body.' });
+        return sendJson(res, 400, { success: false, error: 'Invalid or malformed JSON request payload.' });
       }
+
+      if (!body) {
+        return sendJson(res, 400, { success: false, error: 'Invalid request payload.' });
+      }
+
+      const updated = {
+        ...existing,
+        title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : existing.title,
+        priority: ['Low', 'Medium', 'High'].includes(body.priority) ? body.priority : existing.priority,
+        status: ['Pending', 'In Progress', 'Completed'].includes(body.status) ? body.status : existing.status,
+        updatedAt: new Date().toISOString(),
+      };
+
+      kvStore.set(`task:${taskId}`, updated);
+      saveKV(kvStore);
+
+      return sendJson(res, 200, {
+        success: true,
+        message: 'Task updated successfully',
+        data: updated,
+      });
     }
 
     // DELETE /api/tasks/{id} — Delete a task
     if (method === 'DELETE' && taskId) {
       const existing = kvStore.get(`task:${taskId}`);
       if (!existing) {
-        return sendJson(res, 404, { success: false, error: `Task "${taskId}" not found.` });
+        return sendJson(res, 404, { success: false, error: `Task with ID "${taskId}" not found.` });
       }
 
       kvStore.delete(`task:${taskId}`);
+      saveKV(kvStore);
+
       return sendJson(res, 200, {
         success: true,
-        message: `Task "${taskId}" deleted successfully.`,
+        message: `Task with ID "${taskId}" was deleted successfully.`,
       });
     }
 
-    return sendJson(res, 405, { success: false, error: `Method ${method} not allowed.` });
+    return sendJson(res, 405, { success: false, error: `Method ${method} is not supported for ${pathname}.` });
   }
 
-  // 404 Fallback
+  // 4. 404 Fallback
   sendJson(res, 404, { success: false, error: `Route not found: ${pathname}` });
 });
 
@@ -212,7 +236,7 @@ server.listen(PORT, () => {
   console.log(`=======================================================`);
   console.log(`Student Task Manager Local Dev Server Running!`);
   console.log(`URL: http://localhost:${PORT}`);
-  console.log(`Simulated KV Store: ${kvStore.size} sample tasks seeded`);
-  console.log(`REST API Base: http://localhost:${PORT}/api/tasks`);
+  console.log(`Persisted Tasks in Store: ${kvStore.size}`);
+  console.log(`REST API: http://localhost:${PORT}/api/tasks`);
   console.log(`=======================================================`);
 });

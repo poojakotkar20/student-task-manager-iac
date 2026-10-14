@@ -24,6 +24,7 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 schema.json
+local-kv-store.json
 
 # OS Generated Files
 .DS_Store

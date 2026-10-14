@@ -692,27 +692,50 @@ select {
   transition: all 0.2s;
 }
 
-.task-status-btn.status-pending {
+.task-status-select {
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 4px 22px 4px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid;
+  cursor: pointer;
+  outline: none;
+  background-color: var(--bg-input);
+  transition: all 0.2s;
+}
+
+.meta-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-right: 4px;
+}
+
+.task-status-control, .task-date-info {
+  display: flex;
+  align-items: center;
+}
+
+.task-status-btn.status-pending, select.status-pending {
   color: var(--status-pending-color);
-  background: var(--status-pending-bg);
+  background-color: var(--status-pending-bg);
   border-color: var(--status-pending-border);
 }
 
-.task-status-btn.status-progress {
+.task-status-btn.status-progress, select.status-progress {
   color: var(--status-progress-color);
-  background: var(--status-progress-bg);
+  background-color: var(--status-progress-bg);
   border-color: var(--status-progress-border);
 }
 
-.task-status-btn.status-completed {
+.task-status-btn.status-completed, select.status-completed {
   color: var(--status-completed-color);
-  background: var(--status-completed-bg);
+  background-color: var(--status-completed-bg);
   border-color: var(--status-completed-border);
 }
 
-.task-status-btn:hover {
+.task-status-btn:hover, select.task-status-select:hover {
   filter: brightness(1.2);
-  transform: scale(1.02);
 }
 
 .task-card-actions {
