@@ -1,0 +1,53 @@
+name: Cloudflare Serverless Deployment via Terraform IaC
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'application/**'
+      - 'terraform/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-deploy:
+    name: Terraform Lint, Validate, Plan & Deploy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up HashiCorp Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.5
+
+      - name: Check Terraform Formatting (terraform fmt)
+        run: terraform fmt -check
+
+      - name: Initialize Terraform (terraform init)
+        run: terraform init
+
+      - name: Validate Terraform Configuration (terraform validate)
+        run: terraform validate
+
+      - name: Generate Terraform Speculative Plan (terraform plan)
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Apply Infrastructure Changes (terraform apply)
+        if: github.ref == 'refs/heads/main'
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: terraform apply -input=false -auto-approve tfplan

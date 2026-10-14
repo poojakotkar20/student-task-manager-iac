@@ -1,0 +1,36 @@
+# ==============================================================================
+# Git Ignore Configuration
+# College Mini-Project: Automated Serverless Student Task Management IaC
+# ==============================================================================
+
+# Terraform State Files & Backups (Contains sensitive runtime data)
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Terraform Variable Files (Contains sensitive Cloudflare API tokens & account IDs)
+*.tfvars
+terraform.tfvars
+terraform.tfvars.json
+
+# Local Terraform Working Directory
+.terraform/
+.terraform.lock.hcl
+
+# Local Node & Testing Artifacts
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+schema.json
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor Folders
+.vscode/
+.idea/
+*.swp

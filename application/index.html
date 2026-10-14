@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Task Manager | Serverless IaC Application</title>
+  <meta name="description" content="Automated Serverless Student Task Management Application deployed via Terraform on Cloudflare Workers and Workers KV.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-background-glow glow-1"></div>
+  <div class="app-background-glow glow-2"></div>
+
+  <div class="app-container">
+    <!-- Top Navigation Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-icon-wrapper">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+          </svg>
+        </div>
+        <div class="header-titles">
+          <h1>Student Task Manager</h1>
+          <div class="header-badges">
+            <span class="badge badge-infra">Cloudflare Workers</span>
+            <span class="badge badge-storage">Workers KV</span>
+            <span class="badge badge-iac">Terraform IaC</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="status-indicator-pill" id="apiStatusIndicator" title="API Status">
+          <span class="status-dot online"></span>
+          <span class="status-text" id="apiStatusText">Live Serverless API</span>
+        </div>
+        <button id="apiSettingsBtn" class="btn btn-ghost btn-icon" title="API Endpoint Settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+        <button id="refreshTasksBtn" class="btn btn-secondary btn-icon" title="Refresh Tasks">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Dashboard Row -->
+    <section class="metrics-grid">
+      <div class="metric-card metric-all active" id="statFilterAll" data-filter="all">
+        <div class="metric-icon-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">Total Tasks</span>
+          <span class="metric-value" id="totalTasksCount">0</span>
+        </div>
+      </div>
+
+      <div class="metric-card metric-pending" id="statFilterPending" data-filter="Pending">
+        <div class="metric-icon-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">Pending</span>
+          <span class="metric-value" id="pendingTasksCount">0</span>
+        </div>
+      </div>
+
+      <div class="metric-card metric-progress" id="statFilterProgress" data-filter="In Progress">
+        <div class="metric-icon-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">In Progress</span>
+          <span class="metric-value" id="progressTasksCount">0</span>
+        </div>
+      </div>
+
+      <div class="metric-card metric-completed" id="statFilterCompleted" data-filter="Completed">
+        <div class="metric-icon-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">Completed</span>
+          <span class="metric-value" id="completedTasksCount">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Content Grid: Quick Add + Tasks List -->
+    <main class="main-layout">
+      <!-- Quick Add Task Card -->
+      <section class="task-form-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            <h2>Create New Task</h2>
+          </div>
+          <span class="panel-hint">POST /api/tasks</span>
+        </div>
+
+        <form id="createTaskForm" class="create-task-form">
+          <div class="form-group">
+            <label for="taskTitleInput">Task Title <span class="required">*</span></label>
+            <input 
+              type="text" 
+              id="taskTitleInput" 
+              placeholder="e.g., Complete Cloudflare Terraform Lab Report" 
+              required
+              maxlength="150"
+              autocomplete="off"
+            >
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="taskPriorityInput">Priority</label>
+              <div class="select-wrapper">
+                <select id="taskPriorityInput">
+                  <option value="Low">Low Priority</option>
+                  <option value="Medium" selected>Medium Priority</option>
+                  <option value="High">High Priority</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="taskStatusInput">Initial Status</label>
+              <div class="select-wrapper">
+                <select id="taskStatusInput">
+                  <option value="Pending" selected>Pending</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" id="submitCreateTaskBtn" class="btn btn-primary btn-block">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            <span>Add Student Task</span>
+          </button>
+        </form>
+
+        <div class="iac-info-box">
+          <div class="iac-info-header">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+              <polyline points="2 17 12 22 22 17"/>
+              <polyline points="2 12 12 17 22 12"/>
+            </svg>
+            <strong>IaC Architecture Highlights</strong>
+          </div>
+          <p>Every task operation triggers a REST request to the Cloudflare Worker, executing atomic CRUD actions on the <code>Workers KV</code> persistent store provisioned via Terraform.</p>
+        </div>
+      </section>
+
+      <!-- Tasks Explorer Panel -->
+      <section class="tasks-explorer-panel">
+        <!-- Search and Filter Controls -->
+        <div class="toolbar">
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="searchInput" placeholder="Search tasks by title or ID...">
+            <button id="clearSearchBtn" class="clear-btn hidden" title="Clear search">&times;</button>
+          </div>
+
+          <div class="filter-controls">
+            <div class="select-wrapper select-sm">
+              <select id="priorityFilter">
+                <option value="all">All Priorities</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+
+            <div class="select-wrapper select-sm">
+              <select id="statusFilter">
+                <option value="all">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+
+            <div class="select-wrapper select-sm">
+              <select id="sortFilter">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="priority">Priority: High to Low</option>
+                <option value="title">Title: A-Z</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task List Container -->
+        <div class="tasks-container" id="tasksContainer">
+          <!-- Loading State Placeholder -->
+          <div class="loading-state" id="loadingState">
+            <div class="spinner"></div>
+            <p>Fetching tasks from Cloudflare Workers KV...</p>
+          </div>
+
+          <!-- Task Cards will be rendered here dynamically -->
+          <div class="tasks-grid" id="tasksGrid"></div>
+
+          <!-- Empty State Container -->
+          <div class="empty-state hidden" id="emptyState">
+            <div class="empty-icon-wrap">
+              <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+            </div>
+            <h3 id="emptyStateTitle">No tasks found</h3>
+            <p id="emptyStateMessage">You don't have any tasks yet. Create your first task using the panel on the left!</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="footer-left">
+        <span>College Mini-Project &bull; Student Task Management with Terraform IaC</span>
+      </div>
+      <div class="footer-right">
+        <span>Cloudflare Workers + Workers KV</span>
+        <span class="footer-dot">&bull;</span>
+        <span>REST API v1</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- MODAL: View Task Details (GET /api/tasks/{id}) -->
+  <div class="modal-overlay hidden" id="viewTaskModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="api-badge">GET /api/tasks/{id}</span>
+          <h3>Task Details</h3>
+        </div>
+        <button class="modal-close-btn" id="closeViewModalBtn">&times;</button>
+      </div>
+      <div class="modal-body" id="viewModalBody">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="viewModalCloseAction">Close</button>
+        <button class="btn btn-primary" id="viewModalEditAction">Edit Task</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Edit Task (PUT /api/tasks/{id}) -->
+  <div class="modal-overlay hidden" id="editTaskModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="api-badge">PUT /api/tasks/{id}</span>
+          <h3>Edit Student Task</h3>
+        </div>
+        <button class="modal-close-btn" id="closeEditModalBtn">&times;</button>
+      </div>
+      <form id="editTaskForm">
+        <div class="modal-body">
+          <input type="hidden" id="editTaskId">
+          <div class="form-group">
+            <label for="editTaskTitle">Task Title <span class="required">*</span></label>
+            <input type="text" id="editTaskTitle" required maxlength="150">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editTaskPriority">Priority</label>
+              <div class="select-wrapper">
+                <select id="editTaskPriority">
+                  <option value="Low">Low Priority</option>
+                  <option value="Medium">Medium Priority</option>
+                  <option value="High">High Priority</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="editTaskStatus">Status</label>
+              <div class="select-wrapper">
+                <select id="editTaskStatus">
+                  <option value="Pending">Pending</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelEditBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveEditBtn">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Delete Task Confirmation (DELETE /api/tasks/{id}) -->
+  <div class="modal-overlay hidden" id="deleteConfirmModal">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="api-badge badge-danger">DELETE /api/tasks/{id}</span>
+          <h3>Delete Task</h3>
+        </div>
+        <button class="modal-close-btn" id="closeDeleteModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete this task? This action will permanently remove it from Cloudflare Workers KV.</p>
+        <div class="delete-target-preview" id="deleteTaskTitlePreview"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelDeleteBtn">Cancel</button>
+        <button class="btn btn-danger" id="confirmDeleteBtn">Delete Task</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: API Endpoint Settings (For local development or testing) -->
+  <div class="modal-overlay hidden" id="apiSettingsModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="api-badge">Configuration</span>
+          <h3>API Endpoint Settings</h3>
+        </div>
+        <button class="modal-close-btn" id="closeApiModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          When deployed via Terraform on Cloudflare Workers, API calls are made automatically to the same origin. 
+          If you are testing this frontend locally on <code>localhost</code>, you can point to your deployed Cloudflare Worker URL.
+        </p>
+        <div class="form-group">
+          <label for="customApiEndpointInput">Cloudflare Worker Base URL</label>
+          <input 
+            type="url" 
+            id="customApiEndpointInput" 
+            placeholder="e.g., https://student-task-manager.your-subdomain.workers.dev"
+          >
+          <small class="field-help">Leave empty to use the current host origin (standard serverless deployment).</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="resetApiSettingsBtn">Reset to Default</button>
+        <button class="btn btn-primary" id="saveApiSettingsBtn">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
