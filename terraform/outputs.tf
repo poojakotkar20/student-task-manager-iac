@@ -36,3 +36,13 @@ output "api_tasks_endpoint_format" {
   description = "Direct REST API endpoint format for student tasks"
   value       = "https://${cloudflare_workers_script.task_manager.name}.<your-cloudflare-subdomain>.workers.dev/api/tasks"
 }
+
+output "live_application_url" {
+  description = "Exact live application URL on Cloudflare Workers"
+  value       = "https://${cloudflare_workers_script.task_manager.name}.poojakotkar2024.workers.dev"
+}
+
+output "live_api_endpoint" {
+  description = "Exact live REST API endpoint on Cloudflare Workers"
+  value       = "https://${cloudflare_workers_script.task_manager.name}.poojakotkar2024.workers.dev/api/tasks"
+}
