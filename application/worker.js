@@ -62,10 +62,7 @@ export default {
     try {
       // 2. Serve Static Frontend Assets
       if (pathname === '/' || pathname === '/index.html') {
-        const html = EMBEDDED_HTML !== "__EMBEDDED_HTML__" 
-          ? EMBEDDED_HTML 
-          : `<!DOCTYPE html><html><head><title>Student Task Manager</title></head><body><h1>Student Task Manager</h1><p>Worker is active. Deploying frontend bundle via Terraform...</p></body></html>`;
-        return new Response(html, {
+        return new Response(EMBEDDED_HTML, {
           status: 200,
           headers: {
             ...corsHeaders,
@@ -76,8 +73,7 @@ export default {
       }
 
       if (pathname === '/style.css') {
-        const css = EMBEDDED_CSS !== "__EMBEDDED_CSS__" ? EMBEDDED_CSS : "body { font-family: sans-serif; }";
-        return new Response(css, {
+        return new Response(EMBEDDED_CSS, {
           status: 200,
           headers: {
             ...corsHeaders,
@@ -88,8 +84,7 @@ export default {
       }
 
       if (pathname === '/script.js') {
-        const js = EMBEDDED_JS !== "__EMBEDDED_JS__" ? EMBEDDED_JS : "console.log('Task Manager Script');";
-        return new Response(js, {
+        return new Response(EMBEDDED_JS, {
           status: 200,
           headers: {
             ...corsHeaders,
